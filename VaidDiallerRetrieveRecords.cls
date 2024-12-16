@@ -5,7 +5,6 @@ public  with sharing class VaidDiallerRetrieveRecords {
         System.debug('Starting updateDialEntries:::');
 
         UpdateRequest request = requests[0];
-        
 
         System.debug('Request::: ' + request);
 
@@ -14,12 +13,13 @@ public  with sharing class VaidDiallerRetrieveRecords {
             System.debug('Query String::: ' + queryString);
             List<VAID_Dial_Entry__c> entriesToUpdate = Database.query(queryString);
             System.debug('Entries to Update::: ' + entriesToUpdate.size());
-
-            for (VAID_Dial_Entry__c entry : entriesToUpdate) {
-                entry.VAID_Dial_Status__c = 'Retrieved';
-            }
             
-            if (!entriesToUpdate.isEmpty()) {
+            if (!entriesToUpdate.isEmpty() || entriesToUpdate.size() > 0) {
+ 
+                for (VAID_Dial_Entry__c entry : entriesToUpdate) {
+                    entry.VAID_Dial_Status__c = 'Retrieved';
+                }
+
                 Database.SaveResult[] saveResults = Database.update(entriesToUpdate, false);
                 Integer updatedCount = 0;
                 for (Database.SaveResult sr : saveResults) {
@@ -28,6 +28,7 @@ public  with sharing class VaidDiallerRetrieveRecords {
                     }
                 }
                 results.add(new UpdateResult(updatedCount, 'Records updated successfully'));
+
             } else {
                 results.add(new UpdateResult(0, 'No records found to update'));
             }
@@ -65,17 +66,20 @@ public  with sharing class VaidDiallerRetrieveRecords {
         }
 
         // Add Order By Clauses
+
+        queryString += ' ORDER BY VAID_Phone_Number_Type__c';
+
         if ( prioritisationSortField != null & prioritisationSortOrder != null) {
             if (prioritisationSortOrder == 'ASC') {
-                queryString += ' ORDER BY ' + prioritisationSortField +  ' ASC';
+                queryString += ', ' + prioritisationSortField +  ' ASC';
             } else if (prioritisationSortOrder == 'DESC') {
-                queryString += ' ORDER BY ' + prioritisationSortField +  ' DESC';
+                queryString += ', ' + prioritisationSortField +  ' DESC';
             } else {
-                queryString += ' ORDER BY VAID_Prioritization_Score__c DESC';
+                queryString += ', VAID_Prioritization_Score__c DESC';
             }
         }
 
-        queryString += ', VAID_Phone_Number_Type__c,VAID_Next_Contact_Time__c';
+        queryString += ', VAID_Next_Contact_Time__c';
     
         // Add Limit Clause
         queryString += ' LIMIT 3';
