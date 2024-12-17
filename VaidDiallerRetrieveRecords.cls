@@ -13,12 +13,12 @@ public  with sharing class VaidDiallerRetrieveRecords {
             System.debug('Query String::: ' + queryString);
             List<VAID_Dial_Entry__c> entriesToUpdate = Database.query(queryString);
             System.debug('Entries to Update::: ' + entriesToUpdate.size());
+
+            for (VAID_Dial_Entry__c entry : entriesToUpdate) {
+                entry.VAID_Dial_Status__c = 'Retrieved';
+            }
             
             if (!entriesToUpdate.isEmpty() || entriesToUpdate.size() > 0) {
- 
-                for (VAID_Dial_Entry__c entry : entriesToUpdate) {
-                    entry.VAID_Dial_Status__c = 'Retrieved';
-                }
 
                 Database.SaveResult[] saveResults = Database.update(entriesToUpdate, false);
                 Integer updatedCount = 0;
