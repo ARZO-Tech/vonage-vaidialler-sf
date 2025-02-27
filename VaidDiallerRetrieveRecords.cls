@@ -4,40 +4,44 @@ public  with sharing class VaidDiallerRetrieveRecords {
         List<UpdateResult> results = new List<UpdateResult>();
         System.debug('Starting updateDialEntries:::');
 
-        UpdateRequest request = requests[0];
 
-        System.debug('Request::: ' + request);
+        // Handle bulk requests
+        for (UpdateRequest request : requests) {
 
-        try {
-            String queryString = constructQueryString(request);
-            System.debug('Query String::: ' + queryString);
-            List<VAID_Dial_Entry__c> entriesToUpdate = Database.query(queryString);
-            System.debug('Entries to Update::: ' + entriesToUpdate.size());
+            System.debug('Request::: ' + request);
 
-            for (VAID_Dial_Entry__c entry : entriesToUpdate) {
-                entry.VAID_Dial_Status__c = 'Retrieved';
-            }
-            
-            if (!entriesToUpdate.isEmpty() || entriesToUpdate.size() > 0) {
-
-                Database.SaveResult[] saveResults = Database.update(entriesToUpdate, false);
-                Integer updatedCount = 0;
-                for (Database.SaveResult sr : saveResults) {
-                    if (sr.isSuccess()) {
-                        updatedCount++;
+            try {
+                String queryString = constructQueryString(request);
+                System.debug('Query String::: ' + queryString);
+                List<VAID_Dial_Entry__c> entriesToUpdate = Database.query(queryString);
+                System.debug('Entries to Update::: ' + entriesToUpdate.size());
+                
+                for (VAID_Dial_Entry__c entry : entriesToUpdate) {
+                    entry.VAID_Dial_Status__c = 'Retrieved';
+                }            
+                
+                if (!entriesToUpdate.isEmpty() || entriesToUpdate.size() > 0) {
+    
+                    Database.SaveResult[] saveResults = Database.update(entriesToUpdate, false);
+                    Integer updatedCount = 0;
+                    for (Database.SaveResult sr : saveResults) {
+                        if (sr.isSuccess()) {
+                            updatedCount++;
+                        }
                     }
+                    System.debug('Save Result::: ' + saveResults);
+                    results.add(new UpdateResult(updatedCount, 'Records updated successfully'));
+
+                } else {
+                    System.debug('Save Result::: ' + 'No records found to update');
+                    results.add(new UpdateResult(0, 'No records found to update'));
                 }
-                results.add(new UpdateResult(updatedCount, 'Records updated successfully'));
 
-            } else {
-                results.add(new UpdateResult(0, 'No records found to update'));
+            } catch (Exception e) {
+                System.debug('Exception::: ' + e.getMessage());
+                results.add(new UpdateResult(0, e.getMessage()));
+                
             }
-
-        } catch (Exception e) {
-            System.debug('Exception::: ' + e.getMessage());
-            results.add(new UpdateResult(0, e.getMessage()));
-            // return results;
-            
         }
         return results;
     }
@@ -52,6 +56,7 @@ public  with sharing class VaidDiallerRetrieveRecords {
         String priorityFilter = request.priorityFilter;
         String phoneNumberFilter = request.phoneNumberFilter;
         String recoveryTypeFilter = request.recoveryTypeFilter;
+        Integer concurrentDials = request.concurrentDials;
 
         String queryString = 'SELECT Id FROM VAID_Dial_Entry__c WHERE VAID_Is_Dialable__c = true AND VAID_Dial_List__c = \'' + dialListId + '\'';
         
@@ -80,9 +85,14 @@ public  with sharing class VaidDiallerRetrieveRecords {
         }
 
         queryString += ', VAID_Next_Contact_Time__c';
-    
-        // Add Limit Clause
-        queryString += ' LIMIT 3';
+            
+        // Add Limit Clause for number of concurrent dials per second
+        if (concurrentDials != null && concurrentDials <= 3) {
+            queryString += ' LIMIT ' + concurrentDials;
+        } else {
+            // Max of 3 concurrent dialers per second
+            queryString += ' LIMIT 3';
+        }
 
         return queryString;
     }    
@@ -114,6 +124,9 @@ public  with sharing class VaidDiallerRetrieveRecords {
         
         @InvocableVariable(required=true label='Prioritisation Sort Order' description='Valid Options are ASC or DESC')
         public String prioritisationSortOrder;
+
+        @InvocableVariable(required=false label='Concurrent Dials' description='Number of concurrent dials. Current max is 3')
+        public Integer concurrentDials;
     }
 
     public class UpdateResult {
