@@ -4,6 +4,9 @@ public  with sharing class VaidDiallerRetrieveRecords {
         List<UpdateResult> results = new List<UpdateResult>();
         System.debug('Starting updateDialEntries:::');
 
+        String noRecordsFoundMessage = 'No records found to update';
+        String recordsUpdatedMessage = 'Records updated successfully';
+
 
         // Handle bulk requests
         for (UpdateRequest request : requests) {
@@ -13,16 +16,25 @@ public  with sharing class VaidDiallerRetrieveRecords {
             try {
                 String queryString = constructQueryString(request);
                 System.debug('Query String::: ' + queryString);
+
+                // first query to get ordered by records
                 List<VAID_Dial_Entry__c> entriesToUpdate = Database.query(queryString);
                 System.debug('Entries to Update::: ' + entriesToUpdate.size());
+                    
                 
-                for (VAID_Dial_Entry__c entry : entriesToUpdate) {
-                    entry.VAID_Dial_Status__c = 'Retrieved';
-                }            
-                
-                if (!entriesToUpdate.isEmpty() || entriesToUpdate.size() > 0) {
+                if (!entriesToUpdate.isEmpty()) {
+                    // Second query to lock the records
+                    Set<Id> entryIds = new Set<Id>();
+                    for (VAID_Dial_Entry__c entry : entriesToUpdate) {
+                        entryIds.add(entry.Id);
+                    }
+                    entriesToUpdate = [SELECT Id FROM VAID_Dial_Entry__c WHERE Id IN :entryIds FOR UPDATE];
+
+                    for (VAID_Dial_Entry__c entry : entriesToUpdate) {
+                        entry.VAID_Dial_Status__c = 'Retrieved';
+                    }    
     
-                    Database.SaveResult[] saveResults = Database.update(entriesToUpdate, false);
+                    Database.SaveResult[] saveResults = Database.update(entriesToUpdate, true);
                     Integer updatedCount = 0;
                     for (Database.SaveResult sr : saveResults) {
                         if (sr.isSuccess()) {
@@ -30,11 +42,11 @@ public  with sharing class VaidDiallerRetrieveRecords {
                         }
                     }
                     System.debug('Save Result::: ' + saveResults);
-                    results.add(new UpdateResult(updatedCount, 'Records updated successfully'));
+                    results.add(new UpdateResult(updatedCount, recordsUpdatedMessage));
 
                 } else {
-                    System.debug('Save Result::: ' + 'No records found to update');
-                    results.add(new UpdateResult(0, 'No records found to update'));
+                    System.debug('Save Result::: ' + noRecordsFoundMessage);
+                    results.add(new UpdateResult(0, noRecordsFoundMessage));
                 }
 
             } catch (Exception e) {
